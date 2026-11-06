@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NetPatrol 发布包构建脚本（防呆版）
+Retic 发布包构建脚本（防呆版）
 
 目的：生成**对外发布**的 zip 时，自动剔除本机现网运行数据，避免别人下载后
       看到设备清单、巡检报告、执行日志、拓扑布局或定制配置。
@@ -12,12 +12,12 @@ NetPatrol 发布包构建脚本（防呆版）
     python build_release.py --check <zip>            # 只校验已有 zip，不重新打包
 
 默认路径（相对本脚本所在目录）：
-    源目录：NetPatrol-v2.0.0-plus/
-    输出：  NetPatrol-v2.0.0-plus.zip
+    源目录：Retic-v2.0.0-plus/
+    输出：  Retic-v2.0.0-plus.zip
 
 硬性规则：
   1. 排除 reports/、logs/ 下所有文件，以及 *.log/*.db/*.sqlite*/*.pyc/*.bak/*.tmp
-  2. 排除 topology_layout.json（拓扑布局含设备名与位置）
+  2. 排除 data/（手动拓扑等运行时数据）、topology_layout.json 与 topology*.json
   3. config/config.json 强制替换为内置默认模板（无设备、无 IP、无密码）
   4. config/commands.txt 若含「厂商_型号」定制分组，替换为内置通用模板
   5. 打包后逐项校验；任何一项不通过就删除临时文件并报错退出，不产出脏包
@@ -32,14 +32,14 @@ import sys
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_SRC = os.path.join(HERE, "NetPatrol-v2.0.0-plus")
-DEFAULT_OUT = os.path.join(HERE, "NetPatrol-v2.0.0-plus.zip")
+DEFAULT_SRC = os.path.join(HERE, "Retic-v2.0.0-plus")
+DEFAULT_OUT = os.path.join(HERE, "Retic-v2.0.0-plus.zip")
 
 # ── 排除规则 ──────────────────────────────────────────────────────────────
-EXCLUDE_DIR_PREFIXES = ("reports/", "logs/", "__pycache__/", ".git/", ".idea/")
-EXCLUDE_FILE_NAMES = {"topology_layout.json"}
+EXCLUDE_DIR_PREFIXES = ("reports/", "logs/", "data/", "__pycache__/", ".git/", ".idea/")
+EXCLUDE_FILE_NAMES = {"topology_layout.json", "topology.json", "topology.bak.json"}
 EXCLUDE_SUFFIXES = (".log", ".db", ".sqlite", ".sqlite3", ".pyc", ".bak", ".tmp", ".swp")
-EXCLUDE_DIR_MARKERS = ("/reports/", "/logs/", "/__pycache__/", "/.git/")
+EXCLUDE_DIR_MARKERS = ("/reports/", "/logs/", "/data/", "/__pycache__/", "/.git/")
 
 # 需要检查 / 脱敏的命令配置（含程序内置副本）
 COMMAND_FILES = ("config/commands.txt", "_internal/config/commands.txt")
@@ -85,7 +85,7 @@ def read_bytes(path: str):
 
 def clean_template_path(*parts) -> str:
     """始终从脚本旁的干净发布模板取默认值，绝不读可能被污染的源目录。"""
-    return os.path.join(HERE, "NetPatrol-v2.0.0-plus", *parts)
+    return os.path.join(HERE, "Retic-v2.0.0-plus", *parts)
 
 
 def default_config_bytes() -> bytes:
@@ -191,10 +191,12 @@ def verify(zip_path: str):
         low = n.lower()
         if should_exclude(low):
             problems.append(f"含被排除的运行期数据文件：{n}")
+        if "topology" in low and low.endswith(".json"):
+            problems.append(f"含拓扑数据文件：{n}")
         if re.search(r"[\u4e00-\u9fff\w\-]+_\d{8}_\d{6}\.(txt|html)$", n):
             problems.append(f"疑似巡检报告文件：{n}")
 
-    required = ("NetPatrol.exe", "config/commands.txt", "_internal/frontend/dist/index.html")
+    required = ("Retic.exe", "config/commands.txt", "_internal/frontend/dist/index.html")
     for r in required:
         if r not in names:
             problems.append(f"缺少程序必需文件：{r}")
@@ -241,7 +243,7 @@ def check_only(zip_path: str):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="NetPatrol 发布包构建（自动剔除现网数据）")
+    ap = argparse.ArgumentParser(description="Retic 发布包构建（自动剔除现网数据）")
     ap.add_argument("--src", default=DEFAULT_SRC, help="发布模板目录")
     ap.add_argument("--out", default=DEFAULT_OUT, help="输出 zip 路径")
     ap.add_argument("--check", metavar="ZIP", help="只校验已有 zip，不重新打包")
